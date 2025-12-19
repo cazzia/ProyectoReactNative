@@ -276,4 +276,3 @@ Aplicación desarrollada cumpliendo todos los requisitos de la prueba técnica p
 -  Código TypeScript tipado
 -  Componentes reutilizables
 -  Navegación fluida
-
