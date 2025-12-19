@@ -1,0 +1,27 @@
+
+export const SEARCH_DEBOUNCE_MS = 300;
+
+export const FLATLIST_INITIAL_NUM_TO_RENDER = 10;
+export const FLATLIST_MAX_TO_RENDER_PER_BATCH = 5;
+export const FLATLIST_WINDOW_SIZE = 10;
+export const FLATLIST_COUNTRY_ITEM_HEIGHT = 80;
+
+export const VIDEO_HEIGHT = 200;
+export const VIDEO_SEEK_STEP_MS = 10000; 
+
+export const CACHE_DURATION = {
+  COUNTRIES: 30,
+  CONTINENTS: 60,
+  COUNTRY_DETAILS: 15,
+} as const;
+
+export const NETWORK_TIMEOUT = {
+  DEFAULT: 10000,
+  VIDEO_LOAD: 30000,
+} as const;
+
+export const RETRY_CONFIG = {
+  MAX_RETRIES: 3,
+  INITIAL_DELAY: 1000,
+  BACKOFF_MULTIPLIER: 2,
+} as const;

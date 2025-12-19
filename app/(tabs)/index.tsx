@@ -1,98 +1,191 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useQuery } from '@apollo/client';
+import { router } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import {
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import CountryItem from '../../components/CountryItem';
+import ErrorComponent from '../../components/ErrorComponent';
+import FilterSelector from '../../components/FilterSelector';
+import LoadingComponent from '../../components/LoadingComponent';
+import SearchBar from '../../components/SearchBar';
+import {
+  FLATLIST_COUNTRY_ITEM_HEIGHT,
+  FLATLIST_INITIAL_NUM_TO_RENDER,
+  FLATLIST_MAX_TO_RENDER_PER_BATCH,
+  SEARCH_DEBOUNCE_MS
+} from '../../constants/performance';
+import { useDebounce } from '../../hooks/use-common';
+import { GET_CONTINENTS, GET_COUNTRIES } from '../../lib/apollo';
+import { Continent, Country } from '../../types';
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
+export default function CountriesScreen() {
+  const [searchText, setSearchText] = useState('');
+  const [selectedContinents, setSelectedContinents] = useState<string[]>([]);
+  const [selectedCurrencies, setSelectedCurrencies] = useState<string[]>([]);
+  const insets = useSafeAreaInsets();
+  
+  const debouncedSearchText = useDebounce(searchText, SEARCH_DEBOUNCE_MS);
+
+  const { data: countriesData, loading: countriesLoading, refetch, error } = useQuery(GET_COUNTRIES, {
+    notifyOnNetworkStatusChange: true,
+    errorPolicy: 'all',
+  });
+  const { data: continentsData } = useQuery(GET_CONTINENTS, {
+    errorPolicy: 'all',
+  });
+
+  const currencies = useMemo(() => {
+    if (!countriesData?.countries) return [];
+    const currencySet = new Set<string>();
+    countriesData.countries.forEach((country: Country) => {
+      if (country.currency) {
+        currencySet.add(country.currency);
+      }
+    });
+    return Array.from(currencySet).sort();
+  }, [countriesData]);
+
+  const filteredCountries = useMemo(() => {
+    if (!countriesData?.countries) return [];
+    
+    return countriesData.countries.filter((country: Country) => {
+      const searchLower = debouncedSearchText.toLowerCase();
+      const matchesSearch = debouncedSearchText === '' || 
+                           country.name.toLowerCase().includes(searchLower) ||
+                           country.code.toLowerCase().includes(searchLower);
+      
+      const matchesContinent = selectedContinents.length === 0 || 
+                              selectedContinents.includes(country.continent.name);
+      
+      const matchesCurrency = selectedCurrencies.length === 0 || 
+                             (country.currency && selectedCurrencies.includes(country.currency));
+      
+      return matchesSearch && matchesContinent && matchesCurrency;
+    });
+  }, [countriesData, debouncedSearchText, selectedContinents, selectedCurrencies]);
+
+  const handleCountryPress = useCallback((country: Country) => {
+    router.push(`/country/${country.code}`);
+  }, []);
+
+  const renderCountryItem = useCallback(({ item }: { item: Country }) => (
+    <CountryItem country={item} onPress={handleCountryPress} />
+  ), [handleCountryPress]);
+  
+  const keyExtractor = useCallback((item: Country) => item.code, []);
+  
+  const getItemLayout = useCallback((_: any, index: number) => ({
+    length: FLATLIST_COUNTRY_ITEM_HEIGHT,
+    offset: FLATLIST_COUNTRY_ITEM_HEIGHT * index,
+    index,
+  }), []);
+
+  const renderHeader = () => (
+    <View style={styles.headerContainer}>
+      <SearchBar 
+        value={searchText}
+        onChangeText={setSearchText}
+      />
+      
+      <View style={styles.filtersContainer}>
+        <FilterSelector
+          title="Continente"
+          items={continentsData?.continents?.map((c: Continent) => c.name) || []}
+          selectedItems={selectedContinents}
+          onSelectionChange={setSelectedContinents}
+          multiSelect
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+        
+        <FilterSelector
+          title="Moneda"
+          items={currencies}
+          selectedItems={selectedCurrencies}
+          onSelectionChange={setSelectedCurrencies}
+          multiSelect
+        />
+      </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <View style={styles.resultsContainer}>
+        <Text style={styles.resultsText}>
+          {filteredCountries.length} países encontrados
+        </Text>
+      </View>
+    </View>
+  );
+
+  if (error) {
+    return (
+      <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+        <ErrorComponent
+          title="Error al cargar países"
+          message="No se pudieron cargar los datos. Verifica tu conexión a internet."
+          onRetry={() => refetch()}
+          testID="countries-error"
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+      {countriesLoading && !countriesData ? (
+        <LoadingComponent 
+          message="Cargando países..." 
+          testID="countries-loading"
+        />
+      ) : (
+        <FlatList
+          data={filteredCountries}
+          renderItem={renderCountryItem}
+          keyExtractor={keyExtractor}
+          ListHeaderComponent={renderHeader}
+          refreshControl={
+            <RefreshControl refreshing={countriesLoading} onRefresh={refetch} />
+          }
+          showsVerticalScrollIndicator={false}
+          initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
+          maxToRenderPerBatch={FLATLIST_MAX_TO_RENDER_PER_BATCH}
+          windowSize={10}
+          removeClippedSubviews={true}
+          getItemLayout={getItemLayout}
+          testID="countries-list"
+          contentContainerStyle={{ paddingBottom: 20 }}
+        />
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  headerContainer: {
+    paddingTop: 16,
+    backgroundColor: '#fff',
+  },
+  filtersContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    paddingHorizontal: 16,
+    gap: 12,
+    marginBottom: 12,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  resultsContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  resultsText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
+
 });
